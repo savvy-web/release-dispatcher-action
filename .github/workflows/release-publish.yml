@@ -1,0 +1,57 @@
+name: Release Publishing
+
+on:
+  workflow_call:
+    inputs:
+      phase:
+        description: The release phase (publishing or close-issues)
+        type: string
+        required: true
+      dry-run:
+        description: Run in dry-run mode
+        type: boolean
+        default: false
+    secrets:
+      APP_ID:
+        required: true
+      APP_PRIVATE_KEY:
+        required: true
+      ANTHROPIC_API_KEY:
+        required: false
+      CLAUDE_REVIEW_PAT:
+        required: false
+      SAVVYWEB_NPM_AUTH_TOKEN:
+        required: false
+
+jobs:
+  publish:
+    name: Publish Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Setup runtime
+        id: runtime
+        uses: savvy-web/workflow-runtime-action@main
+
+      - name: Run release
+        uses: savvy-web/workflow-release-action@main
+        with:
+          phase: ${{ inputs.phase }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude-review-pat: ${{ secrets.CLAUDE_REVIEW_PAT }}
+          dry-run: ${{ inputs.dry-run }}
+          custom-registries: |
+            https://registry.savvyweb.dev/${{ secrets.SAVVYWEB_NPM_AUTH_TOKEN }}

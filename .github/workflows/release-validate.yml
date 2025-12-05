@@ -1,0 +1,265 @@
+name: PR Validation
+
+on:
+  workflow_call:
+    inputs:
+      phase:
+        description: The detected workflow phase
+        type: string
+        required: true
+      dry-run:
+        description: Run in dry-run mode
+        type: boolean
+        default: false
+    secrets:
+      APP_ID:
+        required: true
+      APP_PRIVATE_KEY:
+        required: true
+      ANTHROPIC_API_KEY:
+        required: false
+      CLAUDE_REVIEW_PAT:
+        required: false
+      SAVVYWEB_NPM_AUTH_TOKEN:
+        required: false
+
+jobs:
+  pre-publish:
+    name: Pre-Publish Validation
+    runs-on: ubuntu-latest
+    if: inputs.phase == 'validation'
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup runtime
+        id: runtime
+        uses: savvy-web/workflow-runtime-action@main
+
+      - name: Pre-publish validation
+        uses: savvy-web/workflow-release-action@main
+        with:
+          phase: validation
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude-review-pat: ${{ secrets.CLAUDE_REVIEW_PAT }}
+          dry-run: ${{ inputs.dry-run }}
+          custom-registries: |
+            https://registry.savvyweb.dev/${{ secrets.SAVVYWEB_NPM_AUTH_TOKEN }}
+
+  validate:
+    name: Code Validation
+    runs-on: ubuntu-latest
+    env:
+      DO_NOT_TRACK: "1"
+      TURBO_TELEMETRY_DISABLE: "1"
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-checks: write
+
+      - name: Wait for token propagation
+        run: sleep 5
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
+
+      - name: Create validation checks
+        id: create-checks
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const checks = [
+              { name: 'PR Title Validation', env_key: 'PR_TITLE_CHECK_ID' },
+              { name: 'Conventional Commits', env_key: 'COMMITLINT_CHECK_ID' },
+              { name: 'Code Quality', env_key: 'LINT_CHECK_ID' },
+              { name: 'Tests', env_key: 'TEST_CHECK_ID' }
+            ];
+            for (const check of checks) {
+              const { data } = await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: context.payload.pull_request.head.sha,
+                name: check.name,
+                status: 'in_progress'
+              });
+              core.exportVariable(check.env_key, data.id);
+            }
+
+      - name: Setup runtime
+        id: runtime
+        uses: savvy-web/workflow-runtime-action@main
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Validate PR Title
+        id: pr-title
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm exec commitlint --config lib/configs/commitlint.config.ts <<< "${{ github.event.pull_request.title }}"
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Update PR Title Check
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const ok = '${{ steps.pr-title.outputs.exit_code }}' === '0';
+            await github.rest.checks.update({
+              owner: context.repo.owner, repo: context.repo.repo,
+              check_run_id: process.env.PR_TITLE_CHECK_ID,
+              status: 'completed', conclusion: ok ? 'success' : 'failure',
+              output: { title: ok ? 'Valid' : 'Invalid', summary: ok ? 'PR title follows conventional format' : 'PR title must follow conventional format' }
+            });
+
+      - name: Validate Commits
+        id: commitlint
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm exec commitlint --from=origin/${{ github.base_ref }} --to=HEAD --config lib/configs/commitlint.config.ts
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Update Commitlint Check
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const ok = '${{ steps.commitlint.outputs.exit_code }}' === '0';
+            await github.rest.checks.update({
+              owner: context.repo.owner, repo: context.repo.repo,
+              check_run_id: process.env.COMMITLINT_CHECK_ID,
+              status: 'completed', conclusion: ok ? 'success' : 'failure',
+              output: { title: ok ? 'Valid' : 'Invalid', summary: ok ? 'All commits follow conventional format' : 'Some commits do not follow format' }
+            });
+
+      - name: Run Biome Lint
+        id: lint
+        continue-on-error: true
+        run: |
+          set +e
+          biome ci .
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Update Lint Check
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const ok = '${{ steps.lint.outputs.exit_code }}' === '0';
+            await github.rest.checks.update({
+              owner: context.repo.owner, repo: context.repo.repo,
+              check_run_id: process.env.LINT_CHECK_ID,
+              status: 'completed', conclusion: ok ? 'success' : 'failure',
+              output: { title: ok ? 'Passed' : 'Failed', summary: ok ? 'All checks passed' : 'Biome found issues' }
+            });
+
+      - name: Run Tests
+        id: test
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm ci:test
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Update Test Check
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const ok = '${{ steps.test.outputs.exit_code }}' === '0';
+            await github.rest.checks.update({
+              owner: context.repo.owner, repo: context.repo.repo,
+              check_run_id: process.env.TEST_CHECK_ID,
+              status: 'completed', conclusion: ok ? 'success' : 'failure',
+              output: { title: ok ? 'Passed' : 'Failed', summary: ok ? 'All tests passed' : 'Some tests failed' }
+            });
+
+  claude-review:
+    name: Claude Code Review
+    needs: [validate]
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-checks: write
+
+      - name: Create Claude Review check
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Claude Code Review',
+              head_sha: context.payload.pull_request.head.sha,
+              status: 'completed',
+              conclusion: 'neutral',
+              output: { title: 'Skipped', summary: 'Claude review not configured for this repo' }
+            });
+
+  cleanup:
+    name: Cleanup
+    needs: [validate, claude-review]
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      checks: write
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-checks: write
+
+      - name: Cleanup in-progress checks
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const names = ['PR Title Validation', 'Conventional Commits', 'Code Quality', 'Tests', 'Claude Code Review'];
+            const { data } = await github.rest.checks.listForRef({
+              owner: context.repo.owner, repo: context.repo.repo,
+              ref: context.payload.pull_request.head.sha
+            });
+            for (const c of data.check_runs.filter(x => names.includes(x.name) && x.status === 'in_progress')) {
+              await github.rest.checks.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                check_run_id: c.id, status: 'completed', conclusion: 'neutral',
+                output: { title: 'Cancelled', summary: 'Workflow was cancelled' }
+              });
+            }

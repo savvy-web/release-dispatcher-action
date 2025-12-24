@@ -88,10 +88,14 @@ Add these secrets to your organization or repositories:
 | `APP_PRIVATE_KEY` | Yes | GitHub App private key (PEM) |
 | `ANTHROPIC_API_KEY` | No | For Claude-powered PR descriptions |
 | `CLAUDE_REVIEW_PAT` | No | For Claude code review |
+| `CUSTOM_REGISTRY_TOKENS` | No | Auth tokens for custom registries (one per line) |
 
 ### 4. Custom Registries (Optional)
 
-To publish to custom npm registries, use the `custom-registries` input:
+To publish to custom npm registries:
+
+1. Add a `CUSTOM_REGISTRY_TOKENS` secret to your repo/org containing the auth token(s)
+2. Pass the registry URL(s) via the `custom-registries` input:
 
 ```yaml
 jobs:
@@ -100,12 +104,11 @@ jobs:
     with:
       dry-run: ${{ inputs.dry_run || false }}
       custom-registries: |
-        https://registry.example.org/${{ secrets.EXAMPLE_NPM_TOKEN }}
-        https://npm.pkg.github.com/${{ secrets.GITHUB_TOKEN }}
+        https://registry.example.org
     secrets: inherit
 ```
 
-Each line is a registry URL with the auth token appended. The token will be masked in logs.
+For multiple registries, add one URL per line in `custom-registries` and one token per line in the `CUSTOM_REGISTRY_TOKENS` secret (matching order). Tokens are automatically appended to URLs and masked in logs.
 
 ### 5. Done!
 

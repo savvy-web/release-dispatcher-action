@@ -9,8 +9,8 @@ on:
         default: false
       custom-registries:
         description: |
-          Custom npm registries to publish to (one per line).
-          Format: https://registry.example.org/${secrets.AUTH_TOKEN}
+          Custom npm registry base URLs (one per line).
+          Tokens are appended from custom-registry-tokens secret.
         type: string
         required: false
     secrets:
@@ -21,6 +21,9 @@ on:
       ANTHROPIC_API_KEY:
         required: false
       CLAUDE_REVIEW_PAT:
+        required: false
+      CUSTOM_REGISTRY_TOKENS:
+        description: Registry auth tokens (one per line, matching custom-registries order)
         required: false
 
 jobs:

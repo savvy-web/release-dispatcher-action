@@ -52,7 +52,6 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude-review-pat: ${{ secrets.CLAUDE_REVIEW_PAT }}
           dry-run: ${{ inputs.dry-run }}
-          custom-registries: ${{ inputs.custom-registries }}
+          custom-registries: |
+            https://registry.savvyweb.dev/${{ secrets.SAVVYWEB_DEV_NPM_TOKEN }}

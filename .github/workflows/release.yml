@@ -7,12 +7,6 @@ on:
         description: Run in dry-run mode (preview only)
         type: boolean
         default: false
-      custom-registries:
-        description: |
-          Custom npm registries to publish to (one per line).
-          Example: https://registry.example.org/$\{{ secrets.TOKEN }}
-        type: string
-        required: false
       app-bot-name:
         description: GitHub App bot login name (e.g., 'my-app[bot]')
         type: string
@@ -75,7 +69,6 @@ jobs:
     uses: savvy-web/release-dispatcher-action/.github/workflows/release-branch.yml@main
     with:
       dry-run: ${{ inputs.dry-run }}
-      custom-registries: ${{ inputs.custom-registries }}
     secrets: inherit
 
   validation:
@@ -88,7 +81,6 @@ jobs:
     with:
       phase: ${{ needs.control.outputs.phase }}
       dry-run: ${{ inputs.dry-run }}
-      custom-registries: ${{ inputs.custom-registries }}
       app-bot-name: ${{ inputs.app-bot-name }}
       app-bot-id: ${{ inputs.app-bot-id }}
       skip-claude-review: ${{ inputs.skip-claude-review }}
@@ -103,5 +95,4 @@ jobs:
     with:
       phase: ${{ needs.control.outputs.phase }}
       dry-run: ${{ inputs.dry-run }}
-      custom-registries: ${{ inputs.custom-registries }}
     secrets: inherit

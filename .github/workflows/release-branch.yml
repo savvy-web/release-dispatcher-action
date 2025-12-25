@@ -44,4 +44,5 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: ${{ inputs.dry-run }}
-          custom-registries: ${{ inputs.custom-registries }}
+          custom-registries: |
+            https://registry.savvyweb.dev/${{ secrets.SAVVYWEB_DEV_NPM_TOKEN }}

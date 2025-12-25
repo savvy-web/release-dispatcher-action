@@ -11,10 +11,6 @@ on:
         description: Run in dry-run mode
         type: boolean
         default: false
-      custom-registries:
-        description: Custom npm registries to publish to (one per line)
-        type: string
-        required: false
     secrets:
       APP_ID:
         required: true

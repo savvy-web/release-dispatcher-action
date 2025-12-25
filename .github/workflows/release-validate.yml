@@ -73,6 +73,9 @@ jobs:
     permissions:
       contents: read
       checks: write
+      actions: read
+      issues: write
+
     steps:
       - name: Generate GitHub App token
         id: app-token

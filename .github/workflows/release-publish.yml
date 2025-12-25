@@ -12,7 +12,7 @@ on:
         type: boolean
         default: false
       custom-registries:
-        description: Custom npm registry base URLs (one per line)
+        description: Custom npm registries to publish to (one per line)
         type: string
         required: false
     secrets:
@@ -23,8 +23,6 @@ on:
       ANTHROPIC_API_KEY:
         required: false
       CLAUDE_REVIEW_PAT:
-        required: false
-      CUSTOM_REGISTRY_TOKENS:
         required: false
 
 jobs:
@@ -47,34 +45,6 @@ jobs:
         id: runtime
         uses: savvy-web/workflow-runtime-action@main
 
-      - name: Build registry URLs
-        id: registries
-        if: inputs.custom-registries != ''
-        shell: bash
-        env:
-          REGISTRIES: ${{ inputs.custom-registries }}
-          TOKENS: ${{ secrets.CUSTOM_REGISTRY_TOKENS }}
-        run: |
-          # Combine registry URLs with their corresponding tokens
-          IFS=$'\n' read -r -d '' -a urls <<< "$REGISTRIES" || true
-          IFS=$'\n' read -r -d '' -a tokens <<< "$TOKENS" || true
-
-          result=""
-          for i in "${!urls[@]}"; do
-            url="${urls[$i]}"
-            token="${tokens[$i]:-}"
-            if [[ -n "$url" ]]; then
-              result+="${url}/${token}"$'\n'
-            fi
-          done
-
-          # Use heredoc delimiter to handle multiline output
-          {
-            echo "urls<<EOF"
-            echo -n "$result"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
       - name: Run release
         uses: savvy-web/workflow-release-action@main
         with:
@@ -85,4 +55,4 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude-review-pat: ${{ secrets.CLAUDE_REVIEW_PAT }}
           dry-run: ${{ inputs.dry-run }}
-          custom-registries: ${{ steps.registries.outputs.urls }}
+          custom-registries: ${{ inputs.custom-registries }}

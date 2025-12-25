@@ -7,17 +7,15 @@ on:
         description: Run in dry-run mode
         type: boolean
         default: false
+      custom-registries:
+        description: Custom npm registries to publish to (one per line)
+        type: string
+        required: false
     secrets:
       APP_ID:
         required: true
       APP_PRIVATE_KEY:
         required: true
-      ANTHROPIC_API_KEY:
-        required: false
-      CLAUDE_REVIEW_PAT:
-        required: false
-      SAVVYWEB_NPM_AUTH_TOKEN:
-        required: false
 
 jobs:
   manage-branch:
@@ -45,8 +43,5 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude-review-pat: ${{ secrets.CLAUDE_REVIEW_PAT }}
           dry-run: ${{ inputs.dry-run }}
-          custom-registries: |
-            https://registry.savvyweb.dev/${{ secrets.SAVVYWEB_NPM_AUTH_TOKEN }}
+          custom-registries: ${{ inputs.custom-registries }}

@@ -21,7 +21,7 @@ Your Organization
 │       ├── release.yml               ← Main dispatcher
 │       ├── release-branch.yml        ← Branch management
 │       ├── release-publish.yml       ← Publishing (npm provenance)
-│       └── release-validate.yml      ← PR validation
+│       └── release-validate.yml      ← PR validation + Claude review
 │
 ├── repo-a/                           ← Your repos (~25 lines each)
 │   └── .github/workflows/
@@ -69,6 +69,8 @@ permissions:
   packages: write
   attestations: write
   checks: write
+  issues: write
+  actions: read
 
 jobs:
   release:
@@ -86,16 +88,23 @@ Add these secrets to your organization or repositories:
 |--------|----------|-------------|
 | `APP_ID` | Yes | GitHub App ID |
 | `APP_PRIVATE_KEY` | Yes | GitHub App private key (PEM) |
-| `ANTHROPIC_API_KEY` | No | For Claude-powered PR descriptions |
-| `CLAUDE_REVIEW_PAT` | No | For Claude code review |
-| `CUSTOM_REGISTRY_TOKENS` | No | Auth tokens for custom registries (one per line) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | No | For Claude Code automated PR reviews |
+| `CLAUDE_REVIEW_PAT` | No | PAT for Claude to resolve review threads |
 
-### 4. Custom Registries (Optional)
+### 4. Configure Inputs
 
-To publish to custom npm registries:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `dry-run` | No | `false` | Run in dry-run mode (preview only) |
+| `custom-registries` | No | - | Custom npm registries (one per line, with auth token) |
+| `app-bot-name` | No | - | GitHub App bot login name (e.g., `my-app[bot]`) |
+| `app-bot-id` | No | - | GitHub App bot ID for Claude Code Action |
+| `skip-claude-review` | No | `false` | Skip Claude Code review for this run |
+| `claude-review-allowed-bots` | No | `*` | Comma-separated list of bot names allowed to trigger review |
 
-1. Add a `CUSTOM_REGISTRY_TOKENS` secret to your repo/org containing the auth token(s)
-2. Pass the registry URL(s) via the `custom-registries` input:
+### 5. Custom Registries (Optional)
+
+To publish to custom npm registries, pass them via the `custom-registries` input:
 
 ```yaml
 jobs:
@@ -104,17 +113,35 @@ jobs:
     with:
       dry-run: ${{ inputs.dry_run || false }}
       custom-registries: |
-        https://registry.example.org
+        https://registry.example.org/${{ secrets.EXAMPLE_NPM_TOKEN }}
     secrets: inherit
 ```
 
-For multiple registries, add one URL per line in `custom-registries` and one token per line in the `CUSTOM_REGISTRY_TOKENS` secret (matching order). Tokens are automatically appended to URLs and masked in logs.
+Each line is a registry URL with auth token appended. Tokens are masked in logs because GitHub knows the secret values from your repository.
 
-### 5. Done!
+### 6. Claude Code Review (Optional)
+
+To enable automated Claude Code reviews on PRs:
+
+```yaml
+jobs:
+  release:
+    uses: YOUR-ORG/release-dispatcher-action/.github/workflows/release.yml@main
+    with:
+      dry-run: ${{ inputs.dry_run || false }}
+      app-bot-name: my-github-app[bot]
+      app-bot-id: "123456"
+    secrets: inherit
+```
+
+Requires `CLAUDE_CODE_OAUTH_TOKEN` secret to be configured.
+
+### 7. Done!
 
 Your repos now have:
 - Automated release branch management
-- PR validation (title, commits, lint, tests)
+- PR validation (title, commits, lint, markdown, tests)
+- Claude Code automated PR reviews (optional)
 - npm publishing with provenance
 - GitHub release creation
 
@@ -123,7 +150,8 @@ Your repos now have:
 | Phase | Trigger | What Happens |
 |-------|---------|---------------|
 | **branch-management** | Push to main | Creates/updates `changeset-release/main` branch with version bumps |
-| **validation** | PR opened/updated | Runs PR title, commit, lint, and test checks |
+| **validation** | PR opened/updated | Runs PR title, commit, lint, markdown, and test checks |
+| **claude-review** | After validation | Claude Code reviews the PR (if configured) |
 | **publishing** | Release PR merged | Publishes packages to npm with provenance, creates GitHub releases |
 | **close-issues** | Release PR merged | Closes issues linked in commits |
 
@@ -136,6 +164,7 @@ This dispatcher uses these companion actions:
 | [workflow-control-action](https://github.com/savvy-web/workflow-control-action) | Detects which phase to run |
 | [workflow-runtime-action](https://github.com/savvy-web/workflow-runtime-action) | Sets up Node.js, pnpm, etc. |
 | [workflow-release-action](https://github.com/savvy-web/workflow-release-action) | Executes release logic |
+| [claude-code-action](https://github.com/anthropics/claude-code-action) | Claude Code PR reviews |
 
 You'll need to fork/copy these as well, or use the Savvy Web versions.
 
@@ -143,7 +172,7 @@ You'll need to fork/copy these as well, or use the Savvy Web versions.
 
 See [CUSTOMIZATION.md](./docs/CUSTOMIZATION.md) for:
 - Custom registry configuration
-- Validation check customization  
+- Validation check customization
 - Branch naming conventions
 - Monorepo support
 

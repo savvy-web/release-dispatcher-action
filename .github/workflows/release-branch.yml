@@ -12,6 +12,11 @@ on:
         required: true
       APP_PRIVATE_KEY:
         required: true
+      CUSTOM_REGISTRIES:
+        description: |
+          Custom registry authentication (one per line).
+          Format: https://registry.example.com/_authToken=TOKEN
+        required: false
 
 jobs:
   manage-branch:
@@ -40,5 +45,4 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: ${{ inputs.dry-run }}
-          custom-registries: |
-            https://registry.savvyweb.dev/${{ secrets.SAVVYWEB_DEV_NPM_TOKEN }}
+          custom-registries: ${{ secrets.CUSTOM_REGISTRIES }}

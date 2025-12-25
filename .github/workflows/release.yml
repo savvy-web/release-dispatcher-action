@@ -32,6 +32,11 @@ on:
         required: false
       CLAUDE_REVIEW_PAT:
         required: false
+      CUSTOM_REGISTRIES:
+        description: |
+          Custom registry authentication (one per line).
+          Format: https://registry.example.com/_authToken=TOKEN
+        required: false
 
 jobs:
   control:

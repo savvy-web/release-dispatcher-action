@@ -73,8 +73,6 @@ jobs:
     permissions:
       contents: read
       checks: write
-      actions: read
-      issues: write
 
     steps:
       - name: Generate GitHub App token
@@ -309,12 +307,9 @@ jobs:
       CHECK_RUN_ID: ""
       CLAUDE_COMMENT_ID: "0"
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
-      actions: read
+      contents: read
       checks: write
+      id-token: write
     steps:
       - name: Generate GitHub App token
         id: app-token

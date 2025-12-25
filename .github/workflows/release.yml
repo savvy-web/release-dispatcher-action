@@ -77,13 +77,6 @@ jobs:
     if: |
       needs.control.outputs.is_pr_event == 'true' &&
       needs.control.outputs.is_pr_merged != 'true'
-    permissions:
-      contents: write
-      checks: write
-      actions: read
-      issues: write
-      pull-requests: write
-      id-token: write
     uses: savvy-web/release-dispatcher-action/.github/workflows/release-validate.yml@main
     with:
       phase: ${{ needs.control.outputs.phase }}

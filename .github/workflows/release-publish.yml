@@ -47,6 +47,7 @@ jobs:
         uses: savvy-web/workflow-runtime-action@main
 
       - name: Run release
+        id: release
         uses: savvy-web/workflow-release-action@main
         with:
           phase: ${{ inputs.phase }}
@@ -55,3 +56,18 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           dry-run: ${{ inputs.dry-run }}
           custom-registries: ${{ secrets.CUSTOM_REGISTRIES }}
+
+      - name: Notify package release router
+        if: steps.release.outputs.released_packages != '[]' && !inputs.dry-run
+        env:
+          GH_TOKEN: ${{ steps.release.outputs.token }}
+        run: |
+          # Extract package names from released_packages JSON
+          packages=$(echo '${{ steps.release.outputs.released_packages }}' | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+
+          echo "Notifying router of released packages: $packages"
+
+          gh api repos/savvy-web/.github/dispatches \
+            -f event_type=packages-released \
+            -f "client_payload[packages]=$packages" \
+            -f "client_payload[repository]=${{ github.repository }}"

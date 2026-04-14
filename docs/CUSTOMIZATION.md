@@ -155,7 +155,7 @@ To add custom validation checks:
 
 - name: Update Security Check
   if: always()
-  uses: actions/github-script@v8
+  uses: actions/github-script@v9
   with:
     github-token: ${{ steps.app-token.outputs.token }}
     script: |
